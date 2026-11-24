@@ -1,0 +1,68 @@
+{
+  "expo": {
+    "name": "Gocha",
+    "slug": "gocha",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0F0F14"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.gocha.app",
+      "infoPlist": {
+        "NSCalendarsUsageDescription": "Gocha reads your calendar to understand your fixed commitments.",
+        "NSMotionUsageDescription": "Gocha uses motion data to track activity.",
+        "NSLocationWhenInUseUsageDescription": "Gocha uses your location to discover nearby events.",
+        "NSCameraUsageDescription": "Gocha uses your camera to capture moments for Day Wrapped.",
+        "NSPhotoLibraryUsageDescription": "Gocha accesses photos to capture memories.",
+        "NSMicrophoneUsageDescription": "Gocha uses your microphone for voice commands."
+      },
+      "usesAppleSignIn": false
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0F0F14"
+      },
+      "package": "com.gocha.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "READ_CALENDAR",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Gocha uses location for nearby events."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#6366F1"
+        }
+      ],
+      "expo-secure-store"
+    ],
+    "scheme": "gocha",
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

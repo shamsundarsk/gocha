@@ -1,0 +1,91 @@
+# ─── Python / Backend ─────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+wheels/
+.installed.cfg
+*.manifest
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Environment variables — NEVER commit secrets
+.env
+backend/.env
+
+# SQLite dev database
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal
+
+# Alembic
+backend/alembic/versions/*.py
+
+# ─── Node / Mobile ────────────────────────────────────────────────────────────
+node_modules/
+mobile/node_modules/
+
+# Expo
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+mobile/.metro-cache/
+mobile/.expo-shared/
+
+# Metro bundler cache
+.metro-cache/
+
+# TypeScript build output
+*.tsbuildinfo
+
+# ─── macOS ────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ─── Editors ──────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─── Coverage & Testing ───────────────────────────────────────────────────────
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/
+.nyc_output/
+
+# ─── Docker ───────────────────────────────────────────────────────────────────
+# (keep docker-compose.yml but ignore local overrides)
+docker-compose.override.yml
+
+# ─── Misc ─────────────────────────────────────────────────────────────────────
+*.pem
+*.key
+*.cert
