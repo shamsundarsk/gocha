@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import { useAuthStore } from '@/store/authStore';
 import { Colors } from '@/constants/theme';
+import { toastConfig } from '@/components/ui/toastConfig';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,8 +37,17 @@ export default function RootLayout() {
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="onboarding" />
+            <Stack.Screen
+              name="mission/[id]"
+              options={{ animation: 'slide_from_right', gestureEnabled: true }}
+            />
+            <Stack.Screen
+              name="capture/[id]"
+              options={{ animation: 'fade', presentation: 'fullScreenModal', gestureEnabled: false }}
+            />
+            <Stack.Screen name="insights" options={{ animation: 'slide_from_right' }} />
           </Stack>
-          <Toast />
+          <Toast config={toastConfig} topOffset={58} />
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

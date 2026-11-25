@@ -3,16 +3,27 @@ export { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from './theme';
 // iOS Simulator and physical devices can't reach "localhost".
 // In Expo Go, Constants.expoConfig.hostUri gives us the Metro host IP,
 // which is the same machine running the backend. Fall back to hardcoded LAN IP.
+import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 const getApiBaseUrl = (): string => {
   if (!__DEV__) return 'https://api.gocha.app/api/v1';
+
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    return `http://${window.location.hostname || 'localhost'}:8000/api/v1`;
+  }
+
+  // iOS Simulator can reach the host machine through localhost.
+  if (Platform.OS === 'ios' && !Constants.isDevice) {
+    return 'http://localhost:8000/api/v1';
+  }
+
   const hostUri = Constants.expoConfig?.hostUri;          // e.g. "192.168.29.69:8081"
   if (hostUri) {
     const host = hostUri.split(':')[0];                   // "192.168.29.69"
     return `http://${host}:8000/api/v1`;
   }
-  return 'http://192.168.29.75:8000/api/v1';             // fallback
+  return 'http://localhost:8000/api/v1';                  // fallback
 };
 
 export const API_BASE_URL = getApiBaseUrl();

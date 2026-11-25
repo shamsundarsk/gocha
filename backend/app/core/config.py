@@ -40,6 +40,8 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins(self) -> List[str]:
+        if self.APP_ENV == "development":
+            return ["*"]
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
 
     class Config:

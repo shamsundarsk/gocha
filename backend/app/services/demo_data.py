@@ -162,26 +162,51 @@ def get_demo_schedule() -> list:
     ]
 
 
-def get_demo_day_wrapped() -> dict:
+def get_demo_day_wrapped(wrap_date: date | None = None) -> dict:
+    """Deterministic demo edition for a given day.
+
+    Values vary by weekday so multi-day views (insights, history) look like a
+    real week instead of seven identical copies of today.
+    """
+    day = wrap_date or datetime.utcnow().date()
+    idx = day.weekday()
+
+    planned = 4
+    completed = [3, 4, 4, 2, 4, 3, 4][idx]
+    focus_minutes = [138, 162, 148, 74, 176, 96, 152][idx]
+    screen_time = [214, 221, 248, 262, 198, 236, 205][idx]
+    distance_km = [2.4, 4.2, 4.2, 0.8, 3.1, 5.6, 1.9][idx]
+    steps = int(distance_km * 1350) + [1800, 2200, 1900, 1200, 2400, 3100, 1700][idx]
+    active_minutes = [38, 52, 45, 18, 58, 64, 40][idx]
+    moments = [2, 5, 3, 1, 4, 6, 2][idx]
+
+    highlight = (
+        "Strong day. All 4 tasks completed."
+        if completed == planned
+        else f"{completed} of {planned} tasks completed. Progress still counts."
+    )
+    if distance_km >= 3:
+        highlight += f" {distance_km:.1f} km moved."
+
     return {
-        "date": datetime.utcnow().date().isoformat(),
-        "tasks_planned": 4,
-        "tasks_completed": 4,
-        "tasks_postponed": 0,
-        "tasks_abandoned": 0,
-        "focus_minutes": 162,
-        "screen_time_minutes": 221,
-        "steps": 8420,
-        "active_minutes": 52,
-        "distance_km": 4.2,
-        "moments_captured": 5,
-        "events_attended": 1,
+        "date": day.isoformat(),
+        "tasks_planned": planned,
+        "tasks_completed": completed,
+        "tasks_postponed": 1 if idx in (0, 3) else 0,
+        "tasks_abandoned": 1 if idx == 3 else 0,
+        "focus_minutes": focus_minutes,
+        "screen_time_minutes": screen_time,
+        "steps": steps,
+        "active_minutes": active_minutes,
+        "distance_km": distance_km,
+        "moments_captured": moments,
+        "events_attended": 1 if idx in (1, 4) else 0,
         "timeline": [
-            {"time": "08:40", "label": "Morning", "type": "photo", "icon": "☀️"},
-            {"time": "11:20", "label": "Focused Work", "value": "1h 42m", "type": "focus", "icon": "💻"},
-            {"time": "15:00", "label": "Agency Meeting", "type": "calendar", "icon": "📅"},
-            {"time": "18:20", "label": "Evening Run", "value": "4.2 km", "type": "fitness", "icon": "🏃"},
-            {"time": "20:10", "label": "Learning", "value": "58 min", "type": "learning", "icon": "📚"},
+            {"time": "08:40", "label": "Morning", "type": "photo", "icon": "sunny-outline"},
+            {"time": "11:20", "label": "Focused work", "value": "1h 42m", "type": "focus", "icon": "laptop-outline"},
+            {"time": "15:00", "label": "Agency meeting", "type": "calendar", "icon": "calendar-outline"},
+            {"time": "18:20", "label": "Evening run", "value": f"{distance_km:.1f} km", "type": "fitness", "icon": "walk-outline"},
+            {"time": "20:10", "label": "Learning", "value": "58 min", "type": "learning", "icon": "book-outline"},
         ],
-        "highlight_text": "Strong day. All 4 tasks completed. 4.2 km run done.",
+        "highlight_text": highlight,
     }

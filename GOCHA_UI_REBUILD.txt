@@ -1,0 +1,451 @@
+GOCHA — UI REBUILD & LOCATION MISSION SYSTEM
+============================================
+Date: 2026-11-25
+Scope: mobile app UI/UX rebuild + location-locked outdoor missions + Day Wrapped redesign
+Backend: unchanged
+
+This document explains what was rebuilt, why it was rebuilt that way, how the
+location missions work, how each requirement is covered, how to run and test the
+app, and what is intentionally demo-only.
+
+
+1. THE SHORT VERSION
+--------------------
+Gocha now opens on a live map of the user's location. Outdoor tasks (runs,
+walks, gym trips, errands, etc.) become "missions": Gocha pins a finish line on
+the map, draws the geofence, and keeps the in-app camera locked until the user
+physically reaches that zone. Reaching the pin unlocks a full-screen camera.
+The captured photo becomes the proof of the moment, completes the task, and
+shows up in Day Wrapped.
+
+The home screen is no longer a list of cards. It is built around four emotional
+widgets — Momentum, Move, Nudge and Capture — that motivate, activate, tease and
+then lead the user down the photo path.
+
+Day Wrapped was rebuilt as a real end-of-day story: a hero completion ring, a
+mood score, meaningful stats, captured moments, what worked, what to try
+tomorrow, and a merged timeline of backend events plus on-device photos.
+
+
+2. DESIGN SYSTEM
+----------------
+All screens now share one visual language in mobile/src/constants/theme.ts.
+
+Palette
+- Background: near-black navy (#07070F), elevated cards (#181828)
+- Brand: violet (#7C6AF6) with a light lavender secondary (#B4A5FF)
+- Accents: teal (#2DD4BF), amber (#F5A524), rose (#FB7185), sky (#38BDF8)
+- Emotion colors:
+  spark  = #A78BFA  (momentum)
+  move   = #2DD4BF  (movement)
+  nudge  = #FB923C  (teasing)
+  snap   = #38BDF8  (photo / proof)
+- Text: warm white (#F4F2FF), secondary (#9A9DB8), muted (#4B4F66)
+
+Shape, depth and type
+- Radii from 6 to 34, with pill radii for chips and CTAs
+- Soft black shadows plus a violet "brand" glow for primary actions
+- 8-point spacing scale
+- Large black display headings, small uppercase eyebrow labels with wide
+  letter-spacing, and muted supporting copy
+- Gradient tokens for hero cards, brand cards and each emotion tone
+- Haptics on emotional widget presses and on camera capture/success
+
+The result is deliberately calm and dark, with color used only for meaning:
+violet = the system/brand, teal = progress/arrival, amber = warning, rose =
+friction, sky = the photo/proof layer.
+
+
+3. SCREEN-BY-SCREEN
+-------------------
+
+3.1 HOME  (mobile/app/(tabs)/index.tsx)
+- Header: greeting, first name, date badge, avatar.
+- Map hero: a 312px live map of the user's location. It is the first thing on
+  screen and the visual centre of the app.
+- Mission overlay on the map: place name, emoji, distance, unlock radius,
+  LOCKED / READY / DONE state, and a direct Open / Capture / View CTA.
+- If no mission exists, the overlay invites the user to add one and offers a
+  one-tap "Run 5k in the park" example.
+- Four stat chips: done, left, free minutes, steps.
+- "Your mood engine": 2x2 emotional widgets (Momentum, Move, Nudge, Capture).
+- Context alerts: bad weather for outdoor tasks, high recreational screen time.
+- Up Next card with time, duration, fixed flag, mission-locked flag and a
+  Start / Open mission CTA.
+- Quick-add composer: natural language input ("run 5k", "walk 20 minutes",
+  "buy groceries") that calls the existing parser and creates tasks.
+- Suggestion chips, today's schedule timeline (with mission lock pills),
+  pending-task fallback cards, nearby event teaser, and a Wrapped teaser with
+  a completion ring.
+
+3.2 MISSION DETAIL  (mobile/app/mission/[id].tsx)
+- Header with back button, mission label and lock badge.
+- Live map with the user pin, destination pin, dashed geofence and route line.
+- Floating map badge: place, distance / in-range state, LOCKED/READY/DONE.
+- Hero card: finish-line name, instruction, distance, unlock radius, % of the
+  way there.
+- "Path to the photo" stepper:
+  1. Finish line locked
+  2. Reach the unlock zone (with live progress bar)
+  3. Take the proof
+- Primary CTA:
+  - out of range: "Navigate to X" (opens Apple Maps / Google Maps walking
+    directions)
+  - in range: "Open camera"
+  - completed: "See it in Day Wrapped" + "Retake photo"
+- Demo-only secondary action: "Demo: simulate arrival" for simulators.
+- Captured photo card replaces the hero card once a photo exists.
+- Privacy note explaining that the finish line does not move.
+
+3.3 CAMERA CAPTURE  (mobile/app/capture/[id].tsx)
+- Full-screen expo-camera CameraView with top and bottom gradients.
+- Top bar: close, "PROOF OF MOMENT", place name, UNLOCKED/LOCKED chip.
+- Locked state: mission row, distance progress bar, explanation, "Check my
+  location" and "Demo arrival" actions.
+- Unlocked state: large shutter button, camera warming hint, demo frame option
+  if the camera cannot mount (simulator).
+- Permission states handled explicitly: unknown, denied (Allow camera), camera
+  unavailable (Use demo frame).
+- Review state: photo preview, Retake, Use photo.
+- "Use photo" copies the image into the app documents folder, stores it on the
+  mission, marks the mission complete, calls the existing task status API, fires
+  a success haptic and toast, then returns to the mission screen.
+
+3.4 TODAY  (mobile/app/(tabs)/today.tsx)
+- Timeline / list toggle.
+- Completion ring card with contextual copy.
+- Horizontal "Locked missions" carousel with READY/LOCKED state and distance.
+- Timeline rows with status pills, mission lock state, fixed flags.
+- Grouped list view (In progress / Pending / Completed / Other).
+- Tapping a mission task opens the mission screen; other tasks open the status
+  action sheet.
+
+3.5 DISCOVER  (mobile/app/(tabs)/discover.tsx)
+- Header with city and 15 km radius badge.
+- Compact live map strip.
+- Category pills (All, Tech, Music, Arts, Fitness, Business, Food, Learn,
+  Community).
+- Rich event cards: image or category gradient, date badge, title, time, venue,
+  price/free badge, distance, open link.
+
+3.6 DAY WRAPPED  (mobile/app/(tabs)/wrapped.tsx)
+- Seven-day date strip (Today + previous six days).
+- Hero card: date, headline, highlight text, large completion ring, and three
+  mini stats (done, focus, moved/steps).
+- Mood card: a 0-100 "day score" built from completion, focus, movement,
+  moments and a screen-time penalty, with five human-readable states:
+  LOCKED IN, MOMENTUM, WARMING UP, RESET DAY, BLANK CANVAS.
+- Six stat tiles: tasks, focus, distance/steps, active minutes, moments,
+  screen time.
+- Moments strip: real captured photos first; placeholder moments only when the
+  backend reports moments but no local photo exists; otherwise an empty-state
+  card that links back to creating a mission.
+- What worked / Try tomorrow: generated from the actual wrapped numbers.
+- "The story of your day": backend timeline merged with local photo moments,
+  sorted by time, with PHOTO badges.
+- Share action produces a human-readable text summary through the native share
+  sheet.
+- Insights entry point in the header.
+
+3.7 INSIGHTS  (mobile/app/insights.tsx)
+- Moved out of the tab bar and into a stack screen reachable from Wrapped and
+  Profile.
+- 14-day data scan, momentum score, totals, a daily completion bar chart, and
+  behaviour-derived pattern cards.
+- One concrete "thing for next week" based on the data.
+
+3.8 YOU / PROFILE  (mobile/app/(tabs)/profile.tsx)
+- Gradient avatar ring, name, email.
+- Mission / moment / day-streak stats.
+- Recent captured moments thumbnail stack linking to Wrapped.
+- Demo mode, connected sources, notification style, interests.
+- Privacy explanation (coarse location for context, precise mission coordinates
+  stay on device).
+- Behavioural insights link, sign out, version line.
+
+3.9 AUTH + ONBOARDING
+- Reviewed and kept visually consistent with the new palette and typography:
+  welcome, login, register and the five-step onboarding carousel.
+
+3.10 NAVIGATION + TOASTS
+- Tab bar reduced from six tabs to five: Home, Today, Discover, Wrapped, You.
+  Insights is no longer a tab.
+- Floating blurred tab bar (expo-blur) with Ionicons, safe-area aware bottom
+  offset, active icon pill and active dot.
+- Root stack now registers mission/[id], capture/[id] (full-screen modal) and
+  insights.
+- Custom toast styling in mobile/src/components/ui/toastConfig.tsx matches the
+  card/border language.
+
+
+4. LOCATION MISSIONS — HOW THEY WORK
+------------------------------------
+Detection (mobile/src/store/missionStore.ts)
+- A task is treated as outdoor when:
+  - the backend sets is_outdoor, or
+  - the title/location contains words such as run, jog, walk, cycle, hike, park,
+    gym, market, store, groceries, pickup, drop, coffee, cafe, outside, trail,
+    track, or
+  - the category is fitness or errands.
+- Completed/cancelled/abandoned tasks are not turned into new missions.
+
+Destination generation
+- Destinations are deterministic per task: the hash of task id + title +
+  category picks a place template (riverside trail, sports track, hill loop,
+  park, cafe, market, gym, lake promenade) and a bearing.
+- The mission is placed 280-1800 m from the user's current location, using the
+  haversine/destination-point math in mobile/src/utils/geo.ts.
+- This makes demo missions stable across reloads while still being near the
+  user. It is not a real POI lookup.
+
+Geofence
+- Unlock radius: 130 m by default, 180 m for market/errand missions.
+- The mission records the starting distance so progress can be shown as a
+  percentage of the way to the zone.
+- The map draws the radius as a dashed circle scaled correctly for the current
+  zoom (radius / metres-per-pixel, clamped for readability).
+
+Persistence
+- Missions are stored in the app documents folder as gocha-missions.json.
+- Captured photos are copied to documents/moments/<taskId>-<timestamp>.jpg and
+  the URI is stored on the mission.
+- Dismissed/reset task ids are remembered so a reset mission does not come back
+  automatically.
+- Missions and photos survive app restarts. They do not survive uninstalling
+  the app or clearing app data.
+
+States
+- LOCKED: mission exists, user is outside the radius.
+- READY: user is inside the radius; the camera CTA unlocks.
+- DONE: a photo has been captured; the task is completed.
+
+Demo arrival
+- Simulators and reviewers can bypass GPS with "Demo arrival" on the mission
+  or capture screen. This is clearly labelled as demo-only.
+- If the camera cannot mount (simulator), a demo frame can be used to exercise
+  the save/complete/wrapped flow.
+
+
+5. EMOTIONAL WIDGETS — INTENT AND COPY
+--------------------------------------
+Momentum (violet / spark)
+- Shows completion percentage and changes its message as the day progresses:
+  fresh page, started, building, on a roll.
+- Purpose: motivation without shame.
+
+Move (teal / move)
+- Compares steps to a 6,000-step goal (or active minutes to 30).
+- Copy moves from "your body wants a lap" to "body: thanked you".
+- Purpose: activation. Tapping pre-fills a 20-minute walk request.
+
+Nudge (orange / nudge)
+- A rotating set of playful, slightly teasing lines ("Your running shoes just
+  filed a missing person report", "You have 2% battery and 80% excuses").
+- The daily starting line is deterministic, and tapping cycles to another.
+- Purpose: mischief and a push without a guilt trip.
+
+Capture (sky / snap)
+- The bridge from emotion to action. It reflects the real mission state:
+  no mission -> invite to create one; out of range -> distance to the photo;
+  in range -> "You are in range. Take the shot."; completed -> "Moment
+  captured."
+- Tapping goes straight to the mission or camera, which is the required photo
+  path.
+
+All four cards use their emotion gradient, progress bars where relevant, and
+light haptic feedback on press.
+
+
+6. DAY WRAPPED — WHY IT MAKES SENSE
+-----------------------------------
+The old wrapped screen was generic. The new one answers three questions:
+
+1. What did I actually do?
+   - Completion ring, tasks done, focus minutes, distance/steps, active minutes,
+     moments captured.
+2. How did the day feel?
+   - A 0-100 mood score weighted as:
+       completion 50%, focus 20%, movement 20%, moments 10%,
+       minus up to 25 points for high recreational screen time.
+   - Five states with distinct colors and copy, from RESET DAY to LOCKED IN.
+3. What should I change tomorrow?
+   - "What worked" and "Try tomorrow" are generated from the same numbers
+     (e.g. postponed tasks -> reschedule; high screen time -> one phone-free
+     block; overplanning -> shrink the list).
+   - The timeline merges backend events with the user's actual captured photos,
+     so the story includes real proof, not just task records.
+
+The date strip lets the user revisit any of the last seven days. Sharing produces
+a readable text summary instead of a generic "look at my stats" message.
+
+
+7. REQUIREMENT MAPPING
+----------------------
+Requirement: On app open, the centre should show a map of the user's location.
+Covered by: Home map hero (LocationMap, 312px) + useLiveLocation; live CARTO
+dark tiles, pulsing user pin, city chip, LIVE badge, safe-area layout.
+
+Requirement: Outdoor tasks must lock a location/geofence on the map.
+Covered by: missionStore.isOutdoorTask + deterministic destination + 130/180 m
+radius; LocationMap geofence circle, route line, destination pin, LOCATION
+LOCKED chip; lock pills on Home/Today/Mission.
+
+Requirement: When the user says they need to run, they should reach the
+destination and then take a photo inside the app.
+Covered by: parser-created task -> automatic mission -> mission screen with
+walking directions -> geofence gate -> full-screen expo-camera -> save photo ->
+complete task -> moment in Wrapped. Camera stays locked outside the radius.
+
+Requirement: Main emotional widgets should motivate, activate, tease/nudge and
+lead to the photo path.
+Covered by: Momentum, Move, Nudge and Capture widgets. Capture is the explicit
+photo path; the others create the emotional state that gets the user moving.
+
+Requirement: Day Wrapped must look nice and make sense, not generic.
+Covered by: new hero ring, mood score, real stats, captured moments, generated
+what-worked/try-tomorrow, merged timeline, day strip, share.
+
+Requirement: Review and improve all current UI designs.
+Covered by: Home, Today, Discover, Wrapped, Profile, Insights, mission, capture,
+tab bar, root stack, toasts, theme tokens, auth/onboarding consistency, app
+permissions.
+
+Requirement: Provide the explanation/documentation as a .txt file.
+Covered by: this file, GOCHA_UI_REBUILD.txt.
+
+
+8. FILES ADDED / CHANGED
+------------------------
+Added
+- mobile/app/mission/[id].tsx          mission detail + map + path stepper
+- mobile/app/capture/[id].tsx          geofenced in-app camera + save/complete
+- mobile/app/insights.tsx              insights moved out of the tab bar
+- mobile/src/store/missionStore.ts     missions, geofence, photo persistence
+- mobile/src/hooks/useLiveLocation.ts  permission, live watch, reverse geocode
+- mobile/src/components/map/LocationMap.tsx
+- mobile/src/components/widgets/EmotionWidget.tsx
+- mobile/src/components/ui/ProgressRing.tsx
+- mobile/src/components/ui/toastConfig.tsx
+- mobile/src/utils/geo.ts              haversine, bearing, destination, tiles
+
+Rewritten / updated
+- mobile/src/constants/theme.ts
+- mobile/app/(tabs)/index.tsx
+- mobile/app/(tabs)/today.tsx
+- mobile/app/(tabs)/discover.tsx
+- mobile/app/(tabs)/wrapped.tsx
+- mobile/app/(tabs)/profile.tsx
+- mobile/app/(tabs)/_layout.tsx
+- mobile/app/_layout.tsx
+- mobile/app.json                      expo-camera plugin + permission text
+
+Build config fixes
+- mobile/metro.config.js               watch the project root so node_modules
+                                       resolves; keep maxWorkers = 2
+- mobile/.watchmanconfig               stop ignoring node_modules (this was
+                                       causing "Unable to resolve module
+                                       ./node_modules/expo-router/entry.js")
+
+No backend files were changed.
+
+
+9. HOW TO RUN AND TEST
+----------------------
+0. The app is auth-gated. Start the backend on port 8000 (docker-compose from
+   the repo root, or the existing local backend setup), then register or sign in
+   in the app. The API base URL is derived from the Expo/Metro host automatically
+   (mobile/src/constants/index.ts), so a physical device must be on the same
+   network as the backend machine.
+
+1. Install dependencies if needed:
+     cd mobile
+     npm install
+
+2. Type check:
+     npx tsc --noEmit
+
+3. Start the app:
+     npx expo start -c
+   Use a physical device for the real camera and real GPS. Expo Go supports
+   expo-camera, expo-location, expo-file-system and react-native-svg in SDK 51.
+
+4. Grant location permission. Home should show the dark map, a pulsing user pin
+   and the city chip.
+
+5. Add an outdoor task in the composer, for example:
+     Run 5k in the park
+   or tap the "Run 5k" suggestion. A mission is created automatically and the
+   map overlay switches to the locked mission panel.
+
+6. Tap the mission panel. Check:
+   - destination pin and dashed geofence on the map
+   - route line from you to the pin
+   - "Navigate to ..." opens walking directions in the native maps app
+   - "Path to the photo" progress updates as you move
+
+7. On a simulator (or to test quickly), tap "Demo: simulate arrival" on the
+   mission screen, or "Demo arrival" on the camera screen.
+
+8. In the camera:
+   - deny/allow camera permission and confirm the permission states
+   - if the simulator camera cannot mount, use "Demo frame"
+   - take a photo, review it, tap "Use photo"
+   - confirm the success toast, task completion, and return to the mission
+
+9. Check Home: the Capture widget should now say the moment is captured, and
+   the task should be complete. Open Wrapped: the photo should appear in the
+   Moments strip and in the day timeline.
+
+10. Restart the app and confirm the mission and photo still exist.
+
+11. Test Day Wrapped date switching, share, Insights, Discover categories,
+    Today timeline/list toggle, and Profile settings.
+
+Expected verification results
+- npx tsc --noEmit: passes with no errors.
+- npx expo export --platform ios: bundles successfully (validated during this
+  rebuild; 4.5 MB Hermes bundle).
+
+
+10. KNOWN LIMITATIONS / DEMO NOTES
+----------------------------------
+- Missions are frontend-only. The backend Task model has latitude/longitude
+  columns, but the current API schemas do not expose them, so destinations are
+  generated deterministically near the user rather than read from the backend.
+  If those fields are exposed later, buildMission can prefer them.
+- Generated place names (Riverside Trail, City Sports Track, etc.) are templates,
+  not real POIs. They are stable per task but not a map search result.
+- No turn-by-turn routing inside Gocha. Navigation opens the native maps app in
+  walking mode.
+- Geofence accuracy depends on device GPS. A 130 m radius is intentionally
+  forgiving for urban drift; indoor use can still be unreliable.
+- Photos are stored on-device only (documents/moments). They are not uploaded to
+  the backend. Clearing app data or uninstalling removes them.
+- Photo capture completes the mission locally and then calls the existing task
+  status API. If that API call fails (offline/backend down), the moment is still
+  saved and shown in Wrapped, but the backend task may remain pending until a
+  later successful status update.
+- Demo arrival and the demo frame exist so the flow can be reviewed on a
+  simulator. They are labelled as demo actions.
+- CARTO dark tiles require network access. Without network the map falls back to
+  a stylized road grid, and the pins/route/geofence still render.
+- Location watching runs while the app is open. There is no background location
+  tracking.
+- Share uses the native share sheet with a text summary, not a rendered image
+  card.
+- Day Wrapped still depends on the existing backend wrapped endpoint for
+  planned/completed/focus/screen-time/steps data. Local photos are merged in on
+  the client.
+- The backend, API contracts and database were not modified.
+
+
+11. VERIFICATION PERFORMED
+--------------------------
+- TypeScript: `npx tsc --noEmit` completed with no errors.
+- Bundle: `npx expo export --platform ios` completed successfully and produced
+  the iOS Hermes bundle.
+- JSON: mobile/app.json parsed successfully after adding the expo-camera plugin.
+- Route files: mission/[id], capture/[id], insights, (tabs) and (auth) are all
+  registered in the root stack; the removed insights tab entry was deleted.
+- Build config: Metro and Watchman were corrected so dependency resolution works
+  again while keeping the worker limit for macOS file-handle pressure.

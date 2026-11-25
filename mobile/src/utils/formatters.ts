@@ -62,11 +62,11 @@ export function blockDurationMins(start: string | undefined, end: string | undef
 
 export function categoryColor(category: string): string {
   const map: Record<string, string> = {
-    work: '#6366F1', fitness: '#10B981', health: '#EF4444',
-    learning: '#F59E0B', personal: '#8B5CF6', social: '#EC4899',
-    errands: '#94A3B8', creative: '#06B6D4', finance: '#22C55E', other: '#64748B',
+    work: '#0A84FF', fitness: '#30D158', health: '#FF453A',
+    learning: '#FF9F0A', personal: '#BF5AF2', social: '#FF375F',
+    errands: '#8E8E93', creative: '#64D2FF', finance: '#30D158', other: '#636366',
   };
-  return map[category] || '#64748B';
+  return map[category] || '#636366';
 }
 
 export function categoryEmoji(category: string): string {
@@ -78,9 +78,17 @@ export function categoryEmoji(category: string): string {
   return map[category] || '📌';
 }
 
+export function fmt(mins?: number): string {
+  if (!mins) return '—';
+  if (mins < 60) return '${mins}m';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m > 0 ? '${h}h ${m}m' : '${h}h';
+}
+
 export function priorityColor(priority: string): string {
   const map: Record<string, string> = {
-    critical: '#EF4444', high: '#F97316', medium: '#6366F1', low: '#94A3B8',
+    critical: '#FF453A', high: '#FF9F0A', medium: '#0A84FF', low: '#8E8E93',
   };
-  return map[priority] || '#6366F1';
+  return map[priority] || '#0A84FF';
 }

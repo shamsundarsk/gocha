@@ -8,11 +8,13 @@ interface AuthStore {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  onboardingComplete: boolean | null;
 
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, fullName: string) => Promise<void>;
   logout: () => Promise<void>;
   loadFromStorage: () => Promise<void>;
+  completeOnboarding: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthStore>((set) => ({
@@ -20,13 +22,17 @@ export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
   isAuthenticated: false,
   isLoading: true,
+  onboardingComplete: null,
 
   loadFromStorage: async () => {
     try {
       const token = await SecureStore.getItemAsync('auth_token');
       const userStr = await SecureStore.getItemAsync('auth_user');
+      const onboardingValue = await SecureStore.getItemAsync('onboarding_complete');
+      const onboardingComplete =
+        onboardingValue === '1' ? true : onboardingValue === '0' ? false : null;
       if (token && userStr) {
-        set({ token, user: JSON.parse(userStr), isAuthenticated: true });
+        set({ token, user: JSON.parse(userStr), isAuthenticated: true, onboardingComplete });
       }
     } catch {}
     set({ isLoading: false });
@@ -47,12 +53,19 @@ export const useAuthStore = create<AuthStore>((set) => ({
     const user: User = { id: user_id, email, full_name: fullName, created_at: new Date().toISOString() };
     await SecureStore.setItemAsync('auth_token', access_token);
     await SecureStore.setItemAsync('auth_user', JSON.stringify(user));
-    set({ token: access_token, user, isAuthenticated: true });
+    await SecureStore.setItemAsync('onboarding_complete', '0');
+    set({ token: access_token, user, isAuthenticated: true, onboardingComplete: false });
   },
 
   logout: async () => {
     await SecureStore.deleteItemAsync('auth_token');
     await SecureStore.deleteItemAsync('auth_user');
-    set({ token: null, user: null, isAuthenticated: false });
+    await SecureStore.deleteItemAsync('onboarding_complete');
+    set({ token: null, user: null, isAuthenticated: false, onboardingComplete: null });
+  },
+
+  completeOnboarding: async () => {
+    await SecureStore.setItemAsync('onboarding_complete', '1');
+    set({ onboardingComplete: true });
   },
 }));

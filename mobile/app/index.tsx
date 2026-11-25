@@ -4,7 +4,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { Colors } from '@/constants/theme';
 
 export default function Index() {
-  const { isAuthenticated, isLoading } = useAuthStore();
+  const { isAuthenticated, isLoading, onboardingComplete } = useAuthStore();
 
   if (isLoading) {
     return (
@@ -14,5 +14,13 @@ export default function Index() {
     );
   }
 
-  return <Redirect href={isAuthenticated ? '/(tabs)' : '/(auth)/welcome'} />;
+  if (!isAuthenticated) {
+    return <Redirect href="/(auth)/welcome" />;
+  }
+
+  if (onboardingComplete === false) {
+    return <Redirect href="/onboarding" />;
+  }
+
+  return <Redirect href="/(tabs)" />;
 }

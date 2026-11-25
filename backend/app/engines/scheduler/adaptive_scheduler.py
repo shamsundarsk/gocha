@@ -62,7 +62,7 @@ class AdaptiveScheduler:
                 block_type="calendar",
                 is_fixed=True,
                 is_moveable=False,
-                color="#6366F1",
+                color="#0A84FF",
             ))
 
         # 2. Add fixed tasks
@@ -240,11 +240,11 @@ class AdaptiveScheduler:
     @staticmethod
     def _priority_color(priority: str) -> str:
         return {
-            "critical": "#EF4444",
-            "high": "#F97316",
-            "medium": "#6366F1",
-            "low": "#94A3B8",
-        }.get(priority, "#6366F1")
+            "critical": "#FF453A",
+            "high": "#FF9F0A",
+            "medium": "#0A84FF",
+            "low": "#8E8E93",
+        }.get(priority, "#0A84FF")
 
     @staticmethod
     def _parse_dt(value) -> datetime:

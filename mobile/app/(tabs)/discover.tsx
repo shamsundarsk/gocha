@@ -1,320 +1,439 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, Image, Linking, ActivityIndicator,
+  ActivityIndicator,
+  Image,
+  Linking,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as Location from 'expo-location';
+import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
-import { Colors, FontSize, Spacing, Radius, FontWeight, Shadow } from '@/constants/theme';
+import {
+  Colors,
+  FontWeight,
+  Radius,
+  Spacing,
+  Type,
+} from '@/constants/theme';
+import { useLiveLocation } from '@/hooks/useLiveLocation';
+import { LocationMap } from '@/components/map/LocationMap';
+import { EmptyState, Press } from '@/components/ui/kit';
 import { eventsApi } from '@/services/api';
 import { NearbyEvent } from '@/types';
 
-const CATEGORIES = [
-  { id: 'all', label: 'All', emoji: '✨' },
-  { id: 'technology', label: 'Tech', emoji: '💻' },
-  { id: 'music', label: 'Music', emoji: '🎵' },
-  { id: 'arts', label: 'Arts', emoji: '🎨' },
-  { id: 'fitness', label: 'Fitness', emoji: '🏃' },
-  { id: 'business', label: 'Business', emoji: '💼' },
-  { id: 'food', label: 'Food', emoji: '🍽️' },
-  { id: 'education', label: 'Learn', emoji: '📚' },
-  { id: 'community', label: 'Community', emoji: '🤝' },
+const CATS = [
+  { id: 'all', label: 'All', icon: 'sparkles' as const, color: Colors.brand.primary },
+  { id: 'technology', label: 'Tech', icon: 'code-slash' as const, color: '#0A84FF' },
+  { id: 'music', label: 'Music', icon: 'musical-notes' as const, color: '#FF375F' },
+  { id: 'arts', label: 'Arts', icon: 'color-palette' as const, color: '#BF5AF2' },
+  { id: 'fitness', label: 'Fitness', icon: 'barbell' as const, color: '#30D158' },
+  { id: 'business', label: 'Business', icon: 'briefcase' as const, color: '#FF9F0A' },
+  { id: 'food', label: 'Food', icon: 'restaurant' as const, color: '#FF9F0A' },
+  { id: 'education', label: 'Learn', icon: 'book' as const, color: '#64D2FF' },
+  { id: 'community', label: 'Community', icon: 'people' as const, color: '#30D158' },
 ];
 
+const CAT_COLOR: Record<string, string> = CATS.reduce((acc, c) => {
+  acc[c.id] = c.color;
+  return acc;
+}, {} as Record<string, string>);
+
+const CAT_ICON: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
+  technology: 'code-slash',
+  music: 'musical-notes',
+  arts: 'color-palette',
+  fitness: 'barbell',
+  business: 'briefcase',
+  food: 'restaurant',
+  education: 'book',
+  community: 'people',
+};
+
+function getCatIcon(cat?: string) {
+  return CAT_ICON[cat || ''] || 'calendar';
+}
+
+function catLabel(cat?: string) {
+  const found = CATS.find((c) => c.id === cat);
+  return found ? found.label : cat ? cat[0].toUpperCase() + cat.slice(1) : 'Event';
+}
+
 export default function DiscoverScreen() {
+  const live = useLiveLocation();
   const [events, setEvents] = useState<NearbyEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [category, setCategory] = useState('all');
-  const [locationDenied, setLocationDenied] = useState(false);
-  const [userLat, setUserLat] = useState<number | null>(null);
-  const [userLon, setUserLon] = useState<number | null>(null);
 
-  const fetchEvents = useCallback(async (lat?: number, lon?: number, cat?: string) => {
-    const useLat = lat ?? userLat;
-    const useLon = lon ?? userLon;
-    if (!useLat || !useLon) return;
+  const fetchEvents = useCallback(
+    async (cat?: string, coords = live.coords) => {
+      if (!coords) return;
+      setLoading(true);
+      try {
+        const params: any = {
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          radius_km: 15,
+        };
+        const selected = cat ?? category;
+        if (selected !== 'all') params.category = selected;
+        const res = await eventsApi.getNearby(params);
+        setEvents(res.data.events || []);
+      } catch {}
+      setLoading(false);
+    },
+    [category, live.coords]
+  );
 
-    setLoading(true);
-    try {
-      const params: any = { latitude: useLat, longitude: useLon, radius_km: 10 };
-      const activeCat = cat ?? category;
-      if (activeCat !== 'all') params.category = activeCat;
-      const res = await eventsApi.getNearby(params);
-      setEvents(res.data.events || []);
-    } catch {}
-    setLoading(false);
-  }, [userLat, userLon, category]);
-
-  const requestLocation = useCallback(async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      setLocationDenied(true);
-      // Try demo context
-      await fetchWithDemoLocation();
-      return;
-    }
-    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    setUserLat(loc.coords.latitude);
-    setUserLon(loc.coords.longitude);
-    await fetchEvents(loc.coords.latitude, loc.coords.longitude);
-  }, [fetchEvents]);
-
-  const fetchWithDemoLocation = async () => {
-    // Use demo location (Coimbatore) for demo mode
-    const lat = 11.0168;
-    const lon = 76.9558;
-    setUserLat(lat);
-    setUserLon(lon);
-    await fetchEvents(lat, lon);
-  };
-
-  useEffect(() => { requestLocation(); }, []);
+  useEffect(() => {
+    if (live.coords) fetchEvents(category, live.coords);
+  }, [live.coords?.latitude, live.coords?.longitude, category]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchEvents();
+    await Promise.all([live.refresh(), fetchEvents(category, live.coords || undefined)]);
     setRefreshing(false);
-  }, [fetchEvents]);
+  }, [live, fetchEvents, category]);
 
-  const handleCategoryChange = async (cat: string) => {
+  const handleCat = (cat: string) => {
     setCategory(cat);
-    await fetchEvents(undefined, undefined, cat);
+    fetchEvents(cat, live.coords || undefined);
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Discover</Text>
-        <Text style={styles.subtitle}>What's happening around you</Text>
-      </View>
+    <View style={s.root}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        <View style={s.header}>
+          <Text style={s.eyebrow}>
+            {live.city ? `Around ${live.city}` : 'Close to you'}
+          </Text>
+          <Text style={s.title}>Discover</Text>
+        </View>
 
-      {/* Category pills */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.categoriesScroll}
-        style={styles.categoriesContainer}
-      >
-        {CATEGORIES.map((cat) => (
-          <TouchableOpacity
-            key={cat.id}
-            style={[styles.categoryPill, category === cat.id && styles.categoryPillActive]}
-            onPress={() => handleCategoryChange(cat.id)}
+        <ScrollView
+          contentContainerStyle={s.scroll}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Colors.text.secondary}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={s.mapWrap}>
+            <LocationMap
+              user={live.coords || (live.isDemo ? live.demoLocation : null)}
+              city={live.city}
+              height={168}
+            />
+            <View style={s.mapCaption} pointerEvents="none">
+              <View style={s.mapDot} />
+              <Text style={s.mapCaptionText}>
+                {live.coords ? 'Within 15 km of you' : 'Finding your location…'}
+              </Text>
+            </View>
+          </View>
+
+          {live.error ? (
+            <View style={s.notice}>
+              <Ionicons name="location-outline" size={15} color={Colors.text.tertiary} />
+              <Text style={s.noticeText}>{live.error}</Text>
+            </View>
+          ) : null}
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.catsScroll}
+            style={s.catsContainer}
           >
-            <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
-            <Text style={[styles.categoryLabel, category === cat.id && styles.categoryLabelActive]}>
-              {cat.label}
+            {CATS.map((c) => {
+              const active = category === c.id;
+              return (
+                <Press
+                  key={c.id}
+                  style={[s.chip, active && { backgroundColor: Colors.white }]}
+                  onPress={() => handleCat(c.id)}
+                  accessibilityLabel={c.label}
+                >
+                  <Ionicons
+                    name={c.icon}
+                    size={15}
+                    color={active ? Colors.black : Colors.text.tertiary}
+                  />
+                  <Text style={[s.chipLabel, active && s.chipLabelActive]}>{c.label}</Text>
+                </Press>
+              );
+            })}
+          </ScrollView>
+
+          <View style={s.sectionHead}>
+            <Text style={s.sectionTitle}>
+              {category === 'all'
+                ? 'Happening nearby'
+                : `${CATS.find((c) => c.id === category)?.label} nearby`}
             </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.brand.primary} />}
-        showsVerticalScrollIndicator={false}
-      >
-        {locationDenied && (
-          <View style={styles.banner}>
-            <Text style={styles.bannerText}>📍 Location access denied. Showing demo events.</Text>
+            <Text style={s.sectionHint}>{events.length} found</Text>
           </View>
-        )}
 
-        {loading && !refreshing && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator color={Colors.brand.primary} size="large" />
-            <Text style={styles.loadingText}>Finding events nearby...</Text>
-          </View>
-        )}
+          {loading && !refreshing && (
+            <View style={s.loadWrap}>
+              <ActivityIndicator color={Colors.text.secondary} />
+              <Text style={s.loadText}>Looking around you…</Text>
+            </View>
+          )}
 
-        {!loading && events.length === 0 && (
-          <View style={styles.empty}>
-            <Text style={styles.emptyEmoji}>🗺</Text>
-            <Text style={styles.emptyTitle}>Nothing found nearby</Text>
-            <Text style={styles.emptySub}>Try a different category or expand your search radius.</Text>
-          </View>
-        )}
+          {!loading && events.length === 0 && (
+            <EmptyState
+              icon="compass-outline"
+              title="Nothing found nearby"
+              body="Try another category, widen the radius, or check back later."
+            />
+          )}
 
-        {events.map((event) => <EventCard key={event.id} event={event} />)}
+          {events.map((event) => (
+            <EventCard key={event.id} event={event} />
+          ))}
 
-        <View style={{ height: Spacing['3xl'] }} />
-      </ScrollView>
-    </SafeAreaView>
+          <View style={{ height: 120 }} />
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 function EventCard({ event }: { event: NearbyEvent }) {
-  const handleOpen = () => {
-    if (event.source_url) Linking.openURL(event.source_url);
-  };
-
-  const startTime = new Date(event.start_time);
-  const isToday = new Date().toDateString() === startTime.toDateString();
+  const color = CAT_COLOR[event.category || 'all'] || Colors.brand.primary;
+  const startDate = new Date(event.start_time);
+  const isToday = new Date().toDateString() === startDate.toDateString();
 
   return (
-    <TouchableOpacity style={styles.eventCard} onPress={handleOpen} activeOpacity={0.85}>
-      {event.image_url ? (
-        <Image source={{ uri: event.image_url }} style={styles.eventImage} />
-      ) : (
-        <LinearGradient
-          colors={[Colors.brand.primary + '40', Colors.brand.secondary + '40']}
-          style={styles.eventImagePlaceholder}
-        >
-          <Text style={styles.eventImageEmoji}>
-            {getCategoryEmoji(event.category)}
-          </Text>
-        </LinearGradient>
-      )}
-
-      <View style={styles.eventContent}>
-        <View style={styles.eventTopRow}>
-          <View style={styles.distanceBadge}>
-            <Text style={styles.distanceText}>📍 {event.distance_km} km</Text>
-          </View>
-          {event.is_free ? (
-            <View style={styles.freeBadge}>
-              <Text style={styles.freeText}>Free</Text>
-            </View>
-          ) : event.price ? (
-            <Text style={styles.priceText}>₹{event.price}</Text>
-          ) : null}
-        </View>
-
-        <Text style={styles.eventTitle}>{event.title}</Text>
-
-        <View style={styles.eventMeta}>
-          <Text style={styles.eventTime}>
-            {isToday ? 'Today' : format(startTime, 'MMM d')} · {format(startTime, 'h:mm a')}
-          </Text>
-          {event.venue && <Text style={styles.eventVenue}> · {event.venue}</Text>}
-        </View>
-
-        {event.tags && event.tags.length > 0 && (
-          <View style={styles.tagsRow}>
-            {event.tags.slice(0, 3).map((tag) => (
-              <View key={tag} style={styles.tag}>
-                <Text style={styles.tagText}>{tag}</Text>
-              </View>
-            ))}
+    <Press
+      style={s.card}
+      onPress={() => event.source_url && Linking.openURL(event.source_url)}
+      accessibilityLabel={event.title}
+    >
+      <View style={s.media}>
+        {event.image_url ? (
+          <Image source={{ uri: event.image_url }} style={s.mediaImg} />
+        ) : (
+          <View style={[s.mediaPlaceholder, { backgroundColor: color + '1F' }]}>
+            <Ionicons name={getCatIcon(event.category)} size={38} color={color} />
           </View>
         )}
+
+        <View style={s.mediaTop}>
+          <View style={s.catBadge}>
+            <View style={[s.catDot, { backgroundColor: color }]} />
+            <Text style={s.catBadgeText}>{catLabel(event.category)}</Text>
+          </View>
+          {event.is_free ? (
+            <View style={s.priceBadge}>
+              <Text style={s.priceText}>Free</Text>
+            </View>
+          ) : event.price ? (
+            <View style={s.priceBadge}>
+              <Text style={s.priceText}>₹{event.price}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
-    </TouchableOpacity>
+
+      <View style={s.cardBody}>
+        <View style={s.cardMain}>
+          <View style={s.dateBadge}>
+            <Text style={s.dateDay}>{format(startDate, 'd')}</Text>
+            <Text style={s.dateMon}>{format(startDate, 'MMM')}</Text>
+          </View>
+          <View style={s.cardCopy}>
+            <Text style={s.cardTitle} numberOfLines={2}>
+              {event.title}
+            </Text>
+            <Text style={s.cardMeta} numberOfLines={1}>
+              {isToday ? 'Today' : format(startDate, 'EEE')} · {format(startDate, 'h:mm a')}
+              {event.venue ? ` · ${event.venue}` : ''}
+            </Text>
+          </View>
+        </View>
+
+        <View style={s.cardFooter}>
+          <View style={s.distanceRow}>
+            <Ionicons name="location-outline" size={13} color={Colors.text.tertiary} />
+            <Text style={s.distanceText}>{event.distance_km} km away</Text>
+          </View>
+          <View style={s.openRow}>
+            <Text style={s.openText}>Open</Text>
+            <Ionicons name="chevron-forward" size={14} color={Colors.brand.secondary} />
+          </View>
+        </View>
+      </View>
+    </Press>
   );
 }
 
-function getCategoryEmoji(cat?: string): string {
-  const map: Record<string, string> = {
-    technology: '💻', music: '🎵', arts: '🎨', fitness: '🏃',
-    business: '💼', food: '🍽️', education: '📚', community: '🤝',
-    entertainment: '🎭', other: '📌',
-  };
-  return map[cat || 'other'] || '📌';
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg.primary },
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: Colors.bg.primary },
   header: {
-    paddingHorizontal: Spacing['2xl'],
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
   },
-  title: { fontSize: FontSize['3xl'], fontWeight: FontWeight.bold, color: Colors.text.primary },
-  subtitle: { fontSize: FontSize.sm, color: Colors.text.secondary },
+  eyebrow: {
+    fontSize: 13,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text.tertiary,
+    marginBottom: 2,
+  },
+  title: { ...Type.largeTitle, color: Colors.text.primary },
+  scroll: { paddingHorizontal: Spacing.lg },
 
-  categoriesContainer: { paddingTop: Spacing.md },
-  categoriesScroll: { paddingHorizontal: Spacing['2xl'], gap: Spacing.sm, paddingBottom: Spacing.md },
-  categoryPill: {
+  mapWrap: { marginBottom: Spacing.base },
+  mapCaption: {
+    position: 'absolute',
+    left: Spacing.sm,
+    bottom: Spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.bg.card,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    gap: 6,
+    backgroundColor: 'rgba(28,28,30,0.92)',
     borderRadius: Radius.full,
-    gap: Spacing.xs,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 7,
   },
-  categoryPillActive: {
-    backgroundColor: Colors.brand.primary,
-    borderColor: Colors.brand.primary,
+  mapDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accent.teal },
+  mapCaptionText: { fontSize: 12, color: Colors.text.secondary, fontWeight: FontWeight.medium },
+
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
+    marginBottom: Spacing.md,
   },
-  categoryEmoji: { fontSize: 14 },
-  categoryLabel: { fontSize: FontSize.sm, color: Colors.text.secondary, fontWeight: FontWeight.medium },
-  categoryLabelActive: { color: Colors.white },
+  noticeText: { fontSize: 13, color: Colors.text.tertiary, flex: 1 },
 
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: Spacing['2xl'], paddingTop: Spacing.sm },
-
-  banner: {
-    backgroundColor: Colors.bg.card,
-    borderRadius: Radius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.base,
+  catsContainer: { maxHeight: 46, marginBottom: Spacing.md },
+  catsScroll: { gap: Spacing.sm, paddingRight: Spacing.sm },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.fill,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: 9,
+    borderRadius: Radius.full,
   },
-  bannerText: { fontSize: FontSize.sm, color: Colors.text.secondary },
+  chipLabel: {
+    fontSize: 14,
+    fontWeight: FontWeight.medium,
+    color: Colors.text.tertiary,
+  },
+  chipLabelActive: { color: Colors.black, fontWeight: FontWeight.semibold },
 
-  loadingContainer: { paddingTop: Spacing['5xl'], alignItems: 'center', gap: Spacing.base },
-  loadingText: { fontSize: FontSize.base, color: Colors.text.secondary },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: FontWeight.bold,
+    color: Colors.text.primary,
+    letterSpacing: -0.3,
+  },
+  sectionHint: { fontSize: 13, color: Colors.text.tertiary },
 
-  empty: { alignItems: 'center', paddingTop: Spacing['5xl'] },
-  emptyEmoji: { fontSize: 48, marginBottom: Spacing.lg },
-  emptyTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.semibold, color: Colors.text.primary, marginBottom: Spacing.sm },
-  emptySub: { fontSize: FontSize.base, color: Colors.text.secondary, textAlign: 'center' },
+  loadWrap: { paddingVertical: Spacing['4xl'], alignItems: 'center', gap: Spacing.md },
+  loadText: { fontSize: 14, color: Colors.text.tertiary },
 
-  eventCard: {
+  card: {
     backgroundColor: Colors.bg.card,
     borderRadius: Radius.xl,
     marginBottom: Spacing.base,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    ...Shadow.sm,
   },
-  eventImage: { width: '100%', height: 160 },
-  eventImagePlaceholder: {
-    width: '100%',
-    height: 120,
+  media: { height: 176 },
+  mediaImg: { width: '100%', height: '100%' },
+  mediaPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  mediaTop: {
+    position: 'absolute',
+    top: Spacing.md,
+    left: Spacing.md,
+    right: Spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  eventImageEmoji: { fontSize: 48 },
-  eventContent: { padding: Spacing.base },
-  eventTopRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.sm },
-  distanceBadge: {
-    backgroundColor: Colors.bg.secondary,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
+  catBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.60)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
     borderRadius: Radius.full,
   },
-  distanceText: { fontSize: FontSize.xs, color: Colors.text.secondary },
-  freeBadge: {
-    backgroundColor: 'rgba(16,185,129,0.15)',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
-  },
-  freeText: { fontSize: FontSize.xs, color: Colors.success, fontWeight: FontWeight.semibold },
-  priceText: { fontSize: FontSize.xs, color: Colors.text.secondary },
-  eventTitle: {
-    fontSize: FontSize.lg,
+  catDot: { width: 6, height: 6, borderRadius: 3 },
+  catBadgeText: {
+    fontSize: 12,
     fontWeight: FontWeight.semibold,
     color: Colors.text.primary,
-    marginBottom: Spacing.xs,
   },
-  eventMeta: { flexDirection: 'row', marginBottom: Spacing.sm },
-  eventTime: { fontSize: FontSize.sm, color: Colors.text.secondary },
-  eventVenue: { fontSize: FontSize.sm, color: Colors.text.muted },
-  tagsRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },
-  tag: {
-    backgroundColor: Colors.bg.secondary,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
+  priceBadge: {
+    backgroundColor: 'rgba(0,0,0,0.60)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
     borderRadius: Radius.full,
   },
-  tagText: { fontSize: FontSize.xs, color: Colors.text.muted },
+  priceText: { fontSize: 12, fontWeight: FontWeight.semibold, color: Colors.text.primary },
+
+  cardBody: { padding: Spacing.base, gap: Spacing.md },
+  cardMain: { flexDirection: 'row', gap: Spacing.md, alignItems: 'flex-start' },
+  dateBadge: {
+    width: 44,
+    paddingVertical: 6,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.fill,
+    alignItems: 'center',
+  },
+  dateDay: {
+    fontSize: 18,
+    fontWeight: FontWeight.bold,
+    color: Colors.text.primary,
+    lineHeight: 21,
+  },
+  dateMon: {
+    fontSize: 10,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text.tertiary,
+    textTransform: 'uppercase',
+  },
+  cardCopy: { flex: 1, gap: 3 },
+  cardTitle: {
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text.primary,
+    letterSpacing: -0.25,
+  },
+  cardMeta: { fontSize: 13, color: Colors.text.tertiary },
+
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: Spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.separator,
+  },
+  distanceRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  distanceText: { fontSize: 13, color: Colors.text.tertiary },
+  openRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  openText: { fontSize: 14, fontWeight: FontWeight.semibold, color: Colors.brand.secondary },
 });

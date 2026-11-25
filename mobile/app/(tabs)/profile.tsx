@@ -1,31 +1,109 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Switch, Alert,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Colors, FontSize, Spacing, Radius, FontWeight } from '@/constants/theme';
+import {
+  Colors,
+  FontWeight,
+  Radius,
+  Spacing,
+  Type,
+} from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
+import { useMissionStore } from '@/store/missionStore';
+import { Press } from '@/components/ui/kit';
 import { userApi } from '@/services/api';
 import { UserPreferences } from '@/types';
 import Toast from 'react-native-toast-message';
 
 const INTERESTS = [
-  { id: 'technology', label: 'Technology', emoji: '💻' },
-  { id: 'music', label: 'Music', emoji: '🎵' },
-  { id: 'arts', label: 'Arts', emoji: '🎨' },
-  { id: 'fitness', label: 'Fitness', emoji: '🏃' },
-  { id: 'business', label: 'Business', emoji: '💼' },
-  { id: 'food', label: 'Food', emoji: '🍽️' },
-  { id: 'education', label: 'Education', emoji: '📚' },
-  { id: 'community', label: 'Community', emoji: '🤝' },
+  { id: 'technology', label: 'Tech', icon: 'code-slash' },
+  { id: 'music', label: 'Music', icon: 'musical-notes' },
+  { id: 'arts', label: 'Arts', icon: 'color-palette' },
+  { id: 'fitness', label: 'Fitness', icon: 'barbell' },
+  { id: 'business', label: 'Business', icon: 'briefcase' },
+  { id: 'food', label: 'Food', icon: 'restaurant' },
+  { id: 'education', label: 'Learning', icon: 'book' },
+  { id: 'community', label: 'Community', icon: 'people' },
+] as const;
+
+const CONN_ITEMS = [
+  {
+    key: 'calendar_connected',
+    label: 'Calendar',
+    icon: 'calendar' as const,
+    color: Colors.brand.primary,
+    desc: 'Fixed commitments and events',
+  },
+  {
+    key: 'fitness_connected',
+    label: 'Fitness',
+    icon: 'barbell' as const,
+    color: Colors.accent.teal,
+    desc: 'Activity and workout data',
+  },
+  {
+    key: 'location_enabled',
+    label: 'Location',
+    icon: 'location' as const,
+    color: Colors.accent.rose,
+    desc: 'Missions, geofences and nearby events',
+  },
+  {
+    key: 'photos_enabled',
+    label: 'Photos',
+    icon: 'images' as const,
+    color: Colors.accent.violet,
+    desc: 'Day Wrapped memories',
+  },
+  {
+    key: 'screen_time_enabled',
+    label: 'Screen Time',
+    icon: 'phone-portrait' as const,
+    color: Colors.accent.amber,
+    desc: 'Contextual nudges',
+  },
 ];
+
+const NOTIFICATION_STYLES = [
+  { id: 'minimal', label: 'Minimal', desc: 'Only the essentials' },
+  { id: 'balanced', label: 'Balanced', desc: 'A gentle nudge when it matters' },
+  { id: 'proactive', label: 'Proactive', desc: 'Push me when I drift' },
+] as const;
+
+function streakFromMissions(dates: string[]): number {
+  const unique = Array.from(new Set(dates)).sort().reverse();
+  if (unique.length === 0) return 0;
+  let streak = 0;
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  for (let i = 0; i < 365; i += 1) {
+    const key = cursor.toISOString().slice(0, 10);
+    if (unique.includes(key)) {
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    } else if (i === 0) {
+      cursor.setDate(cursor.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
 
 export default function ProfileScreen() {
   const { user, logout } = useAuthStore();
+  const { missions } = useMissionStore();
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadPrefs();
@@ -33,29 +111,27 @@ export default function ProfileScreen() {
 
   const loadPrefs = async () => {
     try {
-      const res = await userApi.getPreferences();
-      setPrefs(res.data);
+      const r = await userApi.getPreferences();
+      setPrefs(r.data);
     } catch {}
   };
 
-  const updatePref = async (key: keyof UserPreferences, value: any) => {
+  const update = async (key: string, value: any) => {
     if (!prefs) return;
-    const updated = { ...prefs, [key]: value };
-    setPrefs(updated);
+    setPrefs((prev) => (prev ? { ...prev, [key]: value } : prev));
     try {
       await userApi.updatePreferences({ [key]: value });
     } catch {}
   };
 
-  const toggleInterest = async (id: string) => {
-    if (!prefs) return;
-    const current = prefs.interests || [];
-    const next = current.includes(id) ? current.filter((i) => i !== id) : [...current, id];
-    await updatePref('interests', next);
+  const toggleInterest = (id: string) => {
+    const curr = prefs?.interests || [];
+    const next = curr.includes(id) ? curr.filter((i) => i !== id) : [...curr, id];
+    update('interests', next);
   };
 
-  const handleLogout = () => {
-    Alert.alert('Sign out', 'Are you sure?', [
+  const handleLogout = () =>
+    Alert.alert('Sign out', 'Sign out of Gocha?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Sign out',
@@ -66,265 +142,483 @@ export default function ProfileScreen() {
         },
       },
     ]);
-  };
 
-  const firstName = user?.full_name?.split(' ')[0] || 'You';
+  const initials =
+    user?.full_name?.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '?';
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Profile header */}
-        <View style={styles.profileHeader}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{firstName[0]?.toUpperCase()}</Text>
-          </View>
-          <Text style={styles.profileName}>{user?.full_name}</Text>
-          <Text style={styles.profileEmail}>{user?.email}</Text>
-        </View>
-
-        {/* Demo mode toggle */}
-        <SettingSection title="Mode">
-          <SettingRow
-            label="Demo Mode"
-            description="Simulate all integrations with realistic data"
-            value={prefs?.demo_mode ?? false}
-            onToggle={(v) => updatePref('demo_mode', v)}
-          />
-        </SettingSection>
-
-        {/* Connections */}
-        <SettingSection title="Connected Sources">
-          <SettingRow
-            label="Calendar"
-            description="Fixed commitments and events"
-            emoji="📅"
-            value={prefs?.calendar_connected ?? false}
-            onToggle={(v) => updatePref('calendar_connected', v)}
-          />
-          <SettingRow
-            label="Fitness"
-            description="Activity and workout verification"
-            emoji="🏃"
-            value={prefs?.fitness_connected ?? false}
-            onToggle={(v) => updatePref('fitness_connected', v)}
-          />
-          <SettingRow
-            label="Location"
-            description="Nearby events and task relevance"
-            emoji="📍"
-            value={prefs?.location_enabled ?? false}
-            onToggle={(v) => updatePref('location_enabled', v)}
-          />
-          <SettingRow
-            label="Photos"
-            description="Day Wrapped memories"
-            emoji="📸"
-            value={prefs?.photos_enabled ?? false}
-            onToggle={(v) => updatePref('photos_enabled', v)}
-          />
-          <SettingRow
-            label="Screen Time"
-            description="Contextual execution nudges"
-            emoji="📱"
-            value={prefs?.screen_time_enabled ?? false}
-            onToggle={(v) => updatePref('screen_time_enabled', v)}
-          />
-        </SettingSection>
-
-        {/* Notifications */}
-        <SettingSection title="Notifications">
-          {(['minimal', 'balanced', 'proactive'] as const).map((style) => (
-            <TouchableOpacity
-              key={style}
-              style={[styles.optionRow, prefs?.notification_style === style && styles.optionRowActive]}
-              onPress={() => updatePref('notification_style', style)}
-            >
-              <Text style={styles.optionLabel}>{style.charAt(0).toUpperCase() + style.slice(1)}</Text>
-              {prefs?.notification_style === style && <Text style={styles.optionCheck}>✓</Text>}
-            </TouchableOpacity>
-          ))}
-        </SettingSection>
-
-        {/* Interests */}
-        <SettingSection title="Interests">
-          <Text style={styles.interestHint}>Used for event discovery relevance</Text>
-          <View style={styles.interestsGrid}>
-            {INTERESTS.map((interest) => (
-              <TouchableOpacity
-                key={interest.id}
-                style={[
-                  styles.interestPill,
-                  prefs?.interests?.includes(interest.id) && styles.interestPillActive,
-                ]}
-                onPress={() => toggleInterest(interest.id)}
-              >
-                <Text style={styles.interestEmoji}>{interest.emoji}</Text>
-                <Text style={[
-                  styles.interestLabel,
-                  prefs?.interests?.includes(interest.id) && styles.interestLabelActive,
-                ]}>
-                  {interest.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </SettingSection>
-
-        {/* Privacy note */}
-        <View style={styles.privacyCard}>
-          <Text style={styles.privacyTitle}>Privacy</Text>
-          <Text style={styles.privacyText}>
-            Location is stored at ~1km precision only. All permissions are optional. You can disconnect any source at any time.
-          </Text>
-        </View>
-
-        {/* Sign out */}
-        <TouchableOpacity style={styles.signOutButton} onPress={handleLogout}>
-          <Text style={styles.signOutText}>Sign out</Text>
-        </TouchableOpacity>
-
-        <View style={{ height: Spacing['3xl'] }} />
-      </ScrollView>
-    </SafeAreaView>
+  const photos = useMemo(
+    () => Object.values(missions).filter((m) => m.photoUri),
+    [missions]
   );
-}
+  const streak = useMemo(
+    () =>
+      streakFromMissions(
+        photos.map((m) => (m.capturedAt ? m.capturedAt.slice(0, 10) : '')).filter(Boolean)
+      ),
+    [photos]
+  );
 
-function SettingSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.sectionCard}>{children}</View>
+    <View style={s.root}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+          <Text style={s.eyebrow}>Your account</Text>
+          <Text style={s.title}>You</Text>
+
+          {/* Identity */}
+          <View style={s.identity}>
+            <View style={s.identityTop}>
+              <View style={s.avatar}>
+                <Text style={s.avatarText}>{initials}</Text>
+              </View>
+              <View style={s.identityCopy}>
+                <Text style={s.name} numberOfLines={1}>
+                  {user?.full_name || 'Gocha user'}
+                </Text>
+                <Text style={s.email} numberOfLines={1}>
+                  {user?.email}
+                </Text>
+              </View>
+            </View>
+
+            <View style={s.statsRow}>
+              <ProfileStat value={`${Object.keys(missions).length}`} label="Missions" />
+              <View style={s.statDivider} />
+              <ProfileStat value={`${photos.length}`} label="Moments" />
+              <View style={s.statDivider} />
+              <ProfileStat value={`${streak}`} label="Day streak" />
+            </View>
+          </View>
+
+          {/* Moments teaser */}
+          {photos.length > 0 && (
+            <Press onPress={() => router.push('/(tabs)/wrapped')} style={s.momentsCard}>
+              <View style={s.momentsThumbs}>
+                {photos.slice(-3).map((m, i) => (
+                  <Image
+                    key={m.taskId}
+                    source={{ uri: m.photoUri! }}
+                    style={[s.momentThumb, { marginLeft: i === 0 ? 0 : -12 }]}
+                  />
+                ))}
+              </View>
+              <View style={s.momentsCopy}>
+                <Text style={s.momentsTitle}>Your captured moments</Text>
+                <Text style={s.momentsSub}>
+                  {photos.length} proof{photos.length > 1 ? 's' : ''} of showing up
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.text.dim} />
+            </Press>
+          )}
+
+          {/* Experience */}
+          <SectionLabel>Experience</SectionLabel>
+          <Group>
+            <SettingRow
+              icon="flask"
+              color={Colors.accent.violet}
+              label="Demo mode"
+              desc="Simulates integrations with realistic local data"
+              value={prefs?.demo_mode ?? true}
+              onValueChange={(v) => update('demo_mode', v)}
+              last
+            />
+          </Group>
+
+          {/* Connected sources */}
+          <SectionLabel>Connected sources</SectionLabel>
+          <Group>
+            {CONN_ITEMS.map((item, i) => (
+              <SettingRow
+                key={item.key}
+                icon={item.icon}
+                color={item.color}
+                label={item.label}
+                desc={item.desc}
+                value={(prefs as any)?.[item.key] ?? false}
+                onValueChange={(v) => update(item.key, v)}
+                last={i === CONN_ITEMS.length - 1}
+              />
+            ))}
+          </Group>
+
+          {/* Notifications */}
+          <SectionLabel>Notifications</SectionLabel>
+          <Group>
+            {NOTIFICATION_STYLES.map((style, i) => {
+              const active = prefs?.notification_style === style.id;
+              return (
+                <Press
+                  key={style.id}
+                  onPress={() => update('notification_style', style.id)}
+                  accessibilityLabel={style.label}
+                >
+                  <View
+                    style={[s.optionRow, i < NOTIFICATION_STYLES.length - 1 && s.divider]}
+                  >
+                    <View style={s.optionCopy}>
+                      <Text style={s.optionLabel}>{style.label}</Text>
+                      <Text style={s.optionDesc}>{style.desc}</Text>
+                    </View>
+                    {active ? (
+                      <Ionicons name="checkmark" size={19} color={Colors.brand.primary} />
+                    ) : null}
+                  </View>
+                </Press>
+              );
+            })}
+          </Group>
+
+          {/* Interests */}
+          <SectionLabel>Interests</SectionLabel>
+          <View style={s.interestCard}>
+            <Text style={s.interestHint}>
+              Used to rank nearby events and missions
+            </Text>
+            <View style={s.interestGrid}>
+              {INTERESTS.map((i) => {
+                const active = prefs?.interests?.includes(i.id);
+                return (
+                  <Press
+                    key={i.id}
+                    onPress={() => toggleInterest(i.id)}
+                    style={[s.interestPill, active && s.interestPillActive]}
+                    accessibilityLabel={i.label}
+                  >
+                    <Ionicons
+                      name={i.icon as any}
+                      size={14}
+                      color={active ? Colors.black : Colors.text.secondary}
+                    />
+                    <Text
+                      style={[s.interestLabel, active && s.interestLabelActive]}
+                    >
+                      {i.label}
+                    </Text>
+                  </Press>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Private by design */}
+          <View style={s.privacyCard}>
+            <View style={s.privacyIcon}>
+              <Ionicons name="lock-closed" size={16} color={Colors.text.secondary} />
+            </View>
+            <View style={s.privacyCopy}>
+              <Text style={s.privacyTitle}>Private by design</Text>
+              <Text style={s.privacyText}>
+                Location is stored at ~1km precision for context. Missions use precise
+                coordinates only on your device. All permissions are optional and can be
+                revoked at any time. We do not sell or share your data.
+              </Text>
+            </View>
+          </View>
+
+          <Group style={s.linksGroup}>
+            <Press onPress={() => router.push('/insights' as any)} accessibilityLabel="Behavioural insights">
+              <View style={[s.linkRow, s.divider]}>
+                <View style={s.linkLeft}>
+                  <Ionicons name="analytics-outline" size={18} color={Colors.text.secondary} />
+                  <Text style={s.linkText}>Behavioural insights</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={Colors.text.dim} />
+              </View>
+            </Press>
+            <Press onPress={handleLogout} accessibilityLabel="Sign out">
+              <View style={s.linkRow}>
+                <View style={s.linkLeft}>
+                  <Ionicons name="log-out-outline" size={18} color={Colors.error} />
+                  <Text style={[s.linkText, { color: Colors.error }]}>Sign out</Text>
+                </View>
+              </View>
+            </Press>
+          </Group>
+
+          <Text style={s.version}>Gocha 1.0 · made for showing up</Text>
+
+          <View style={{ height: 118 }} />
+        </ScrollView>
+      </SafeAreaView>
     </View>
   );
 }
 
-function SettingRow({
-  label, description, emoji, value, onToggle,
+function ProfileStat({ value, label }: { value: string; label: string }) {
+  return (
+    <View style={s.profileStat}>
+      <Text style={s.profileStatValue}>{value}</Text>
+      <Text style={s.profileStatLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <Text style={s.sectionLabel}>{children}</Text>;
+}
+
+function Group({
+  children,
+  style,
 }: {
+  children: React.ReactNode;
+  style?: any;
+}) {
+  return <View style={[s.group, style]}>{children}</View>;
+}
+
+function SettingRow({
+  icon,
+  color,
+  label,
+  desc,
+  value,
+  onValueChange,
+  last,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  color: string;
   label: string;
-  description?: string;
-  emoji?: string;
+  desc?: string;
   value: boolean;
-  onToggle: (v: boolean) => void;
+  onValueChange: (v: boolean) => void;
+  last?: boolean;
 }) {
   return (
-    <View style={styles.settingRow}>
-      <View style={{ flex: 1 }}>
-        <View style={styles.settingLabel}>
-          {emoji && <Text style={styles.settingEmoji}>{emoji}</Text>}
-          <Text style={styles.settingLabelText}>{label}</Text>
-        </View>
-        {description && <Text style={styles.settingDesc}>{description}</Text>}
+    <View style={[s.settingRow, !last && s.divider]}>
+      <View style={[s.settingIcon, { backgroundColor: color + '22' }]}>
+        <Ionicons name={icon} size={16} color={color} />
+      </View>
+      <View style={s.settingCopy}>
+        <Text style={s.settingLabel}>{label}</Text>
+        {desc && <Text style={s.settingDesc}>{desc}</Text>}
       </View>
       <Switch
         value={value}
-        onValueChange={onToggle}
-        trackColor={{ false: Colors.bg.secondary, true: Colors.brand.primary }}
+        onValueChange={onValueChange}
+        trackColor={{ false: Colors.fillStrong, true: Colors.accent.teal }}
         thumbColor={Colors.white}
+        ios_backgroundColor={Colors.fillStrong}
+        accessibilityLabel={label}
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg.primary },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: Spacing['2xl'], paddingTop: Spacing.lg },
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: Colors.bg.primary },
+  scroll: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
 
-  profileHeader: { alignItems: 'center', marginBottom: Spacing['3xl'] },
+  eyebrow: {
+    fontSize: 13,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text.tertiary,
+    marginBottom: 2,
+  },
+  title: { ...Type.largeTitle, color: Colors.text.primary, marginBottom: Spacing.lg },
+
+  identity: {
+    backgroundColor: Colors.bg.card,
+    borderRadius: Radius['2xl'],
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  identityTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.base },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     backgroundColor: Colors.brand.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.md,
   },
-  avatarText: { fontSize: FontSize['2xl'], fontWeight: FontWeight.bold, color: Colors.white },
-  profileName: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.text.primary, marginBottom: 4 },
-  profileEmail: { fontSize: FontSize.base, color: Colors.text.secondary },
-
-  section: { marginBottom: Spacing.lg },
-  sectionTitle: {
-    fontSize: FontSize.xs,
+  avatarText: {
+    fontSize: 22,
     fontWeight: FontWeight.bold,
-    color: Colors.text.secondary,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    marginBottom: Spacing.md,
+    color: Colors.white,
   },
-  sectionCard: {
+  identityCopy: { flex: 1, gap: 3 },
+  name: {
+    fontSize: 22,
+    fontWeight: FontWeight.bold,
+    color: Colors.text.primary,
+    letterSpacing: -0.35,
+  },
+  email: { fontSize: 14, color: Colors.text.tertiary },
+
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.lg,
+    paddingTop: Spacing.base,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.separator,
+  },
+  profileStat: { flex: 1, alignItems: 'center', gap: 2 },
+  profileStatValue: {
+    fontSize: 18,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text.primary,
+  },
+  profileStatLabel: {
+    fontSize: 11,
+    fontWeight: FontWeight.medium,
+    color: Colors.text.tertiary,
+  },
+  statDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 26,
+    backgroundColor: Colors.separator,
+  },
+
+  momentsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.bg.card,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  momentsThumbs: { flexDirection: 'row', alignItems: 'center' },
+  momentThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.bg.card,
+    backgroundColor: Colors.bg.elevated,
+  },
+  momentsCopy: { flex: 1, gap: 2 },
+  momentsTitle: {
+    fontSize: 15,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text.primary,
+  },
+  momentsSub: { fontSize: 12, color: Colors.text.tertiary },
+
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text.tertiary,
+    marginBottom: Spacing.sm,
+    marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
+  },
+  group: {
     backgroundColor: Colors.bg.card,
     borderRadius: Radius.lg,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
+    marginBottom: Spacing.lg,
+  },
+  divider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.separator,
   },
 
   settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.base,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    minHeight: 60,
   },
-  settingLabel: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: 2 },
-  settingEmoji: { fontSize: 16 },
-  settingLabelText: { fontSize: FontSize.base, fontWeight: FontWeight.medium, color: Colors.text.primary },
-  settingDesc: { fontSize: FontSize.sm, color: Colors.text.muted },
+  settingIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingCopy: { flex: 1, gap: 2 },
+  settingLabel: {
+    fontSize: 16,
+    fontWeight: FontWeight.regular,
+    color: Colors.text.primary,
+    letterSpacing: -0.2,
+  },
+  settingDesc: { fontSize: 12, color: Colors.text.tertiary, lineHeight: 16 },
 
   optionRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: Spacing.base,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    minHeight: 58,
   },
-  optionRowActive: { backgroundColor: 'rgba(99,102,241,0.08)' },
-  optionLabel: { fontSize: FontSize.base, color: Colors.text.primary },
-  optionCheck: { fontSize: FontSize.base, color: Colors.brand.primary, fontWeight: FontWeight.bold },
+  optionCopy: { flex: 1, gap: 2 },
+  optionLabel: {
+    fontSize: 16,
+    color: Colors.text.primary,
+    fontWeight: FontWeight.regular,
+    letterSpacing: -0.2,
+  },
+  optionDesc: { fontSize: 12, color: Colors.text.tertiary },
 
-  interestHint: { fontSize: FontSize.sm, color: Colors.text.muted, marginBottom: Spacing.md },
-  interestsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  interestCard: {
+    backgroundColor: Colors.bg.card,
+    borderRadius: Radius.lg,
+    padding: Spacing.base,
+    marginBottom: Spacing.lg,
+  },
+  interestHint: { fontSize: 12, color: Colors.text.tertiary, marginBottom: Spacing.md },
+  interestGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   interestPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.bg.card,
+    gap: 6,
+    backgroundColor: Colors.fill,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: 9,
     borderRadius: Radius.full,
-    gap: Spacing.xs,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
   },
-  interestPillActive: {
-    backgroundColor: 'rgba(99,102,241,0.15)',
-    borderColor: Colors.brand.primary,
-  },
-  interestEmoji: { fontSize: 14 },
-  interestLabel: { fontSize: FontSize.sm, color: Colors.text.secondary },
-  interestLabelActive: { color: Colors.brand.primary },
+  interestPillActive: { backgroundColor: Colors.white },
+  interestLabel: { fontSize: 14, color: Colors.text.secondary },
+  interestLabelActive: { color: Colors.black, fontWeight: FontWeight.semibold },
 
   privacyCard: {
+    flexDirection: 'row',
+    gap: Spacing.md,
     backgroundColor: Colors.bg.card,
     borderRadius: Radius.lg,
     padding: Spacing.base,
     marginBottom: Spacing.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
   },
-  privacyTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.text.primary, marginBottom: Spacing.sm },
-  privacyText: { fontSize: FontSize.sm, color: Colors.text.secondary, lineHeight: 20 },
-
-  signOutButton: {
-    padding: Spacing.base,
+  privacyIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    backgroundColor: Colors.fill,
     alignItems: 'center',
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.3)',
-    marginBottom: Spacing.lg,
+    justifyContent: 'center',
   },
-  signOutText: { fontSize: FontSize.base, color: Colors.error, fontWeight: FontWeight.medium },
+  privacyCopy: { flex: 1, gap: 4 },
+  privacyTitle: {
+    fontSize: 15,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text.primary,
+  },
+  privacyText: { fontSize: 12, color: Colors.text.tertiary, lineHeight: 18 },
+
+  linksGroup: { marginBottom: Spacing.base },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.base,
+    minHeight: 54,
+  },
+  linkLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  linkText: { fontSize: 16, color: Colors.text.primary, letterSpacing: -0.2 },
+
+  version: {
+    textAlign: 'center',
+    fontSize: 12,
+    color: Colors.text.dim,
+    marginBottom: Spacing.base,
+  },
 });

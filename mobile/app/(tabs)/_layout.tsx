@@ -1,71 +1,112 @@
+import React from 'react';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet } from 'react-native';
-import { Colors, FontSize } from '@/constants/theme';
+import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Colors, FontWeight, Radius } from '@/constants/theme';
 
-type TabIconProps = {
-  focused: boolean;
-  emoji: string;
-  label: string;
-};
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
-function TabIcon({ focused, emoji, label }: TabIconProps) {
+function TabIcon({ name, focused }: { name: IconName; focused: boolean }) {
   return (
-    <View style={[styles.tab, focused && styles.tabActive]}>
-      <Text style={styles.tabEmoji}>{emoji}</Text>
-      {focused && <Text style={styles.tabLabel}>{label}</Text>}
+    <View style={styles.iconWrap}>
+      <Ionicons
+        name={name}
+        size={22}
+        color={focused ? Colors.brand.secondary : Colors.text.tertiary}
+      />
     </View>
   );
 }
 
+function TabLabel({ label, focused }: { label: string; focused: boolean }) {
+  return (
+    <Text style={[styles.label, focused && styles.labelActive]} numberOfLines={1}>
+      {label}
+    </Text>
+  );
+}
+
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+  const barBottom = Math.max(insets.bottom, 12);
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarShowLabel: false,
+        tabBarShowLabel: true,
+        tabBarHideOnKeyboard: true,
+        tabBarActiveTintColor: Colors.brand.secondary,
+        tabBarInactiveTintColor: Colors.text.tertiary,
+        tabBarStyle: [styles.bar, { bottom: barBottom }],
+        tabBarItemStyle: styles.item,
+        tabBarLabelPosition: 'below-icon',
+        tabBarBackground: () =>
+          Platform.OS === 'ios' ? (
+            <BlurView intensity={80} tint="dark" style={styles.barBackground}>
+              <View style={styles.barTint} />
+            </BlurView>
+          ) : (
+            <View style={styles.barBackground}>
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(18,18,20,0.98)' }]} />
+            </View>
+          ),
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ focused }) => <TabIcon focused={focused} emoji="⚡" label="Home" />,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name={focused ? 'home' : 'home-outline'} focused={focused} />
+          ),
+          tabBarLabel: ({ focused }) => <TabLabel label="Home" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="today"
         options={{
-          title: 'Today',
-          tabBarIcon: ({ focused }) => <TabIcon focused={focused} emoji="📅" label="Today" />,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name={focused ? 'checkmark-circle' : 'checkmark-circle-outline'} focused={focused} />
+          ),
+          tabBarLabel: ({ focused }) => <TabLabel label="Today" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="discover"
         options={{
-          title: 'Discover',
-          tabBarIcon: ({ focused }) => <TabIcon focused={focused} emoji="🗺" label="Discover" />,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name={focused ? 'compass' : 'compass-outline'} focused={focused} />
+          ),
+          tabBarLabel: ({ focused }) => <TabLabel label="Discover" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="wrapped"
         options={{
-          title: 'Wrapped',
-          tabBarIcon: ({ focused }) => <TabIcon focused={focused} emoji="✨" label="Wrapped" />,
-        }}
-      />
-      <Tabs.Screen
-        name="insights"
-        options={{
-          title: 'Insights',
-          tabBarIcon: ({ focused }) => <TabIcon focused={focused} emoji="📊" label="Insights" />,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name={focused ? 'sparkles' : 'sparkles-outline'} focused={focused} />
+          ),
+          tabBarLabel: ({ focused }) => <TabLabel label="Wrapped" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
-          tabBarIcon: ({ focused }) => <TabIcon focused={focused} emoji="👤" label="Profile" />,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name={focused ? 'person' : 'person-outline'} focused={focused} />
+          ),
+          tabBarLabel: ({ focused }) => <TabLabel label="You" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
+        name="widgets-test"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name={focused ? 'construct' : 'construct-outline'} focused={focused} />
+          ),
+          tabBarLabel: ({ focused }) => <TabLabel label="Widgets" focused={focused} />,
         }}
       />
     </Tabs>
@@ -73,32 +114,41 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: Colors.bg.secondary,
-    borderTopColor: 'rgba(255,255,255,0.06)',
-    borderTopWidth: 1,
-    height: 70,
-    paddingBottom: 8,
-    paddingTop: 8,
+  bar: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 12,
+    height: 72,
+    borderTopWidth: 0,
+    backgroundColor: 'transparent',
+    elevation: 0,
+    borderRadius: Radius['2xl'],
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 28,
   },
-  tab: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    gap: 2,
-    minWidth: 44,
+  barBackground: {
+    flex: 1,
+    borderRadius: Radius['2xl'],
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
-  tabActive: {
-    backgroundColor: Colors.brand.glow,
-    flexDirection: 'row',
+  barTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(16,16,18,0.52)',
   },
-  tabEmoji: { fontSize: 20 },
-  tabLabel: {
-    fontSize: FontSize.xs,
-    color: Colors.brand.primary,
-    fontWeight: '600',
-    marginLeft: 4,
+  item: { paddingTop: 10, paddingBottom: 9 },
+  iconWrap: { alignItems: 'center', justifyContent: 'center', height: 24, width: 44 },
+  label: {
+    fontSize: 10,
+    fontWeight: FontWeight.medium,
+    color: Colors.text.tertiary,
+    marginTop: 1,
+    letterSpacing: 0.1,
   },
+  labelActive: { color: Colors.brand.secondary, fontWeight: FontWeight.semibold },
 });

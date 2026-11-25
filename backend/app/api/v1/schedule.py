@@ -69,9 +69,9 @@ async def get_schedule(
                 normalized["block_type"] = "task"
             # Ensure color exists
             priority = block.get("priority", "medium")
-            color_map = {"critical": "#EF4444", "high": "#F97316", "medium": "#6366F1", "low": "#94A3B8"}
+            color_map = {"critical": "#FF453A", "high": "#FF9F0A", "medium": "#0A84FF", "low": "#8E8E93"}
             if "color" not in normalized:
-                normalized["color"] = color_map.get(priority, "#6366F1")
+                normalized["color"] = color_map.get(priority, "#0A84FF")
             normalized_demo.append(normalized)
 
         next_action = None

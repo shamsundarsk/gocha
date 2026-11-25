@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0F0F14"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": false,
@@ -27,7 +27,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0F0F14"
+        "backgroundColor": "#000000"
       },
       "package": "com.gocha.app",
       "permissions": [
@@ -51,7 +51,13 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#6366F1"
+          "color": "#0A84FF"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Gocha unlocks the camera only at your mission finish line, so your photo is proof you were there."
         }
       ],
       "expo-secure-store"

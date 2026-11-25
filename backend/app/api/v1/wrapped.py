@@ -28,7 +28,7 @@ async def get_day_wrapped(
     prefs = prefs_result.scalar_one_or_none()
 
     if prefs and prefs.demo_mode:
-        return get_demo_day_wrapped()
+        return get_demo_day_wrapped(wrap_date)
 
     # Check if already generated
     existing = await db.execute(

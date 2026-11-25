@@ -25,7 +25,9 @@ async def get_preferences(
     )
     prefs = result.scalar_one_or_none()
     if not prefs:
-        raise HTTPException(status_code=404, detail="Preferences not found.")
+        prefs = UserPreferences(user_id=current_user.id)
+        db.add(prefs)
+        await db.flush()
     return prefs
 
 
